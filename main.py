@@ -1,76 +1,53 @@
 import os
-import asyncio
 import json
 from openai import OpenAI
-from dotenv import load_dotenv
-from InterviewReport import InterviewReport
 import streamlit as st
+from InterviewReport import InterviewReport
 
-# 尝试加载本地 .env，如果失败（比如在云端）也不报错
+# 1. 页面配置与环境初始化
+st.set_page_config(page_title="Java 毒舌面试官", page_icon="🤖")
+st.title("🤖 尖酸刻薄的 Java 面试官")
+
+# 加载本地环境变量（仅限本地开发）
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
 
-# 优先从 Streamlit Secrets 读取，其次从环境变量读取
+# 优先读取 Streamlit Secrets
 api_key = st.secrets.get("DEEPSEEK_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
 base_url = st.secrets.get("DEEPSEEK_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL")
-client = OpenAI(
-    api_key=api_key,
-    base_url=base_url
-)
-history_path = os.path.join(os.getcwd(),"history.json")
 
-def load_history():
-    if os.path.exists(history_path):
-        with open(history_path,"r",encoding="utf-8") as f:
-             json.load(f)
-    else:
-        return [{"role":"system","content": "你是一个说话尖酸刻薄的面试官，专门挑 Java 程序员的刺。"}]
+if not api_key:
+    st.error("未找到 API Key，请在 Streamlit Secrets 中配置 DEEPSEEK_API_KEY")
+    st.stop()
 
-def save_history(history):
-    with open(history_path,"w",encoding="utf-8") as f:
-        json.dump(history,f,ensure_ascii=False,indent=4)
+client = OpenAI(api_key=api_key, base_url=base_url)
 
+# 2. 初始化 Session State (替代 history.json)
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "system", "content": "你是一个说话尖酸刻薄的面试官，专门挑 Java 程序员的刺。"}
+    ]
 
-
-history = load_history()
-
+# 3. 辅助函数
 def query_knowledge_base(topic: str):
     try:
-        file_path = os.path.join(os.getcwd(),"knowledge.json")
-        with open(file_path,"r",encoding="utf-8") as f:
+        # 注意：确保 knowledge.json 已经上传到 GitHub 仓库根目录
+        file_path = os.path.join(os.getcwd(), "knowledge.json")
+        if not os.path.exists(file_path):
+            return "知识库文件缺失。"
+        with open(file_path, "r", encoding="utf-8") as f:
             kb = json.load(f)
         for key in kb:
-            if topic.strip().lower() in key:
+            if topic.strip().lower() in key.lower():
                 return kb[key]
-
+        return "未找到相关技术知识。"
     except Exception as e:
-        return f"查阅异常{e}"
-
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_knowledge",
-            "description": "当用户回答HashMap、Spring时使用。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "topic": {
-                        "type": "string", 
-                        "description": "技术栈"
-                    }
-                },
-                "required": ["topic"]
-            }
-        }
-    }
-]
+        return f"查阅异常: {e}"
 
 def get_final_report(history):
-    # 构造一个“总结指令”
     system_instruction = (
         "你是一个严格的 JSON 生成器。请根据对话总结面试报告。"
         "必须输出以下结构的 JSON，不得包含任何其他文字：\n"
@@ -82,7 +59,7 @@ def get_final_report(history):
         '  "sharp_summary": "刻薄评语"\n'
         "}"
     )
-    messages= history + [{"role":"system","content":system_instruction}]
+    messages = history + [{"role": "system", "content": system_instruction}]
     response = client.chat.completions.create(
         model="deepseek-chat",
         messages=messages,
@@ -90,64 +67,96 @@ def get_final_report(history):
         stream=False
     )
     raw_json_str = response.choices[0].message.content
-    report_data = InterviewReport.model_validate_json(raw_json_str)
-    return report_data
+    return InterviewReport.model_validate_json(raw_json_str)
 
+# 函数调用工具定义
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_knowledge",
+            "description": "当用户回答HashMap、Spring等技术栈时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "技术栈名称"}
+                },
+                "required": ["topic"]
+            }
+        }
+    }
+]
 
-async def chat_with_tools(user_input):
-    history.append({"role":"user","content":user_input})
-    response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=history,
-        tools=tools
-    )
+# 4. 侧边栏：功能控制
+with st.sidebar:
+    st.header("面试控制台")
+    if st.button("🏁 结束面试并生成报告"):
+        if len(st.session_state.messages) < 3:
+            st.warning("面试还没开始呢，急着投胎吗？")
+        else:
+            with st.spinner("正在生成毒舌报告..."):
+                try:
+                    report = get_final_report(st.session_state.messages)
+                    st.session_state.report = report
+                except Exception as e:
+                    st.error(f"生成报告失败: {e}")
 
-    msg = response.choices[0].message
+    if "report" in st.session_state:
+        st.divider()
+        res = st.session_state.report
+        if res.is_hired:
+            st.success("算你走运，明天来上班。")
+        else:
+            st.error("果然不出所料，你可以滚了。")
+        st.json(res.model_dump())
 
-    if msg.tool_calls:
-        history.append(msg)
-        for tool_call in msg.tool_calls:
-            func_name = tool_call.function.name
-            args = json.loads(tool_call.function.arguments)
-            print(f"[系统日志] 🔍 AI 正在后台查阅秘籍...")
+# 5. 聊天界面渲染
+for message in st.session_state.messages:
+    if message["role"] != "system":
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-            if func_name == "get_knowledge":
-                res_content = query_knowledge_base(args.get('topic'))
-            history.append({"role":"tool","tool_call_id": tool_call.id,"content":res_content})
+# 6. 用户输入处理
+if prompt := st.chat_input("说点什么来取悦面试官..."):
+    # 立即展示用户消息
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-        second_response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=history
-        )
-        final_msg = second_response.choices[0].message.content
-        print(f"🤖 AI: {final_msg}")
-        history.append({"role": "assistant", "content": str(final_msg)})
-    else:
-        print(f"🤖 AI: {msg.content}")
-        history.append({"role": "assistant", "content": msg.content})
-
-
-
-async def main():
-        print("🤖 面试官提醒 (输入 'finalize' 结束面试)")
-        while True:
-            query = input("\n👨‍💻 你: ")
-            if query.lower() == 'finalize':
-                res = get_final_report(history)
-                file_path = os.path.join(os.getcwd(), "report.json")
-
-                with open(file_path,"w",encoding="utf-8") as f:
-                    json.dump(res.model_dump(),f,ensure_ascii=False,indent=4)
-                if res.is_hired:
-                    print("算你走运，明天来上班。")
-                else:
-                    print("果然不出所料，你可以滚了。")
-                break
-            await chat_with_tools(query)
-        
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except Exception as e :
-        print(f"发生致命错误: {e}")
+    # 调用 AI 回复
+    with st.chat_message("assistant"):
+        with st.spinner("面试官正在酝酿毒液..."):
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=st.session_state.messages,
+                tools=tools
+            )
+            
+            msg = response.choices[0].message
+            
+            # 处理 Tool Calls (Function Calling)
+            if msg.tool_calls:
+                st.session_state.messages.append(msg)
+                for tool_call in msg.tool_calls:
+                    func_name = tool_call.function.name
+                    args = json.loads(tool_call.function.arguments)
+                    
+                    if func_name == "get_knowledge":
+                        res_content = query_knowledge_base(args.get('topic'))
+                        st.session_state.messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": res_content
+                        })
+                
+                # 第二次请求，获取最终文字回复
+                second_response = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=st.session_state.messages
+                )
+                final_content = second_response.choices[0].message.content
+            else:
+                final_content = msg.content
+            
+            st.markdown(final_content)
+            st.session_state.messages.append({"role": "assistant", "content": final_content})
