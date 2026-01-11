@@ -1,0 +1,11 @@
+{
+    "candidate_name": "未知",
+    "final_score": 50,
+    "top_3_weaknesses": [
+        "对HashMap底层原理理解肤浅",
+        "缺乏深入技术细节阐述能力",
+        "回答过于简略且未展示个人见解"
+    ],
+    "is_hired": false,
+    "sharp_summary": "呵，就这水平也敢来面试？连HashMap的基本原理都说不清楚，只会背几个关键词，简直是浪费我的时间。"
+}

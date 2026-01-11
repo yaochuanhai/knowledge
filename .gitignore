@@ -1,0 +1,28 @@
+# --- 隐私与配置 (最重要！) ---
+.env
+dev.env
+*.env
+chat_db.json
+
+# --- Python 运行缓存 ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- 虚拟环境 ---
+venv/
+env/
+.venv/
+ENV/
+
+# --- 编辑器配置 ---
+.vscode/
+.cursor/
+.idea/
+*.swp
+*.bak
+
+# --- 操作系统临时文件 ---
+Thumbs.db
+Desktop.ini
+.DS_Store
