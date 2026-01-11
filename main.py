@@ -10,15 +10,16 @@ import streamlit as st
 try:
     from dotenv import load_dotenv
     load_dotenv()
-    client = OpenAI(api_key = os.getenv("DEEPSEEK_API_KEY"),base_url = os.getenv("DEEPSEEK_BASE_URL"))
 except ImportError:
-    api_key = st.secrets.get("DEEPSEEK_API_KEY") 
-    base_url = st.secrets.get("DEEPSEEK_BASE_URL") 
-    client = OpenAI(api_key = os.getenv("DEEPSEEK_API_KEY"),base_url = os.getenv("DEEPSEEK_BASE_URL"))
     pass
 
 # 优先从 Streamlit Secrets 读取，其次从环境变量读取
-
+api_key = st.secrets.get("DEEPSEEK_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
+base_url = st.secrets.get("DEEPSEEK_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL")
+client = OpenAI(
+    api_key=api_key,
+    base_url=base_url
+)
 history_path = os.path.join(os.getcwd(),"history.json")
 
 def load_history():
@@ -39,7 +40,7 @@ history = load_history()
 def query_knowledge_base(topic: str):
     try:
         file_path = os.path.join(os.getcwd(),"knowledge.json")
-        with open(file_path,"f",encoding="utf-8") as f:
+        with open(file_path,"r",encoding="utf-8") as f:
             kb = json.load(f)
         for key in kb:
             if topic.strip().lower() in key:
