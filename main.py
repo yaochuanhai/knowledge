@@ -4,10 +4,21 @@ import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from InterviewReport import InterviewReport
+import streamlit as st
 
-load_dotenv()
+# 尝试加载本地 .env，如果失败（比如在云端）也不报错
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    client = OpenAI(api_key = os.getenv("DEEPSEEK_API_KEY"),base_url = os.getenv("DEEPSEEK_BASE_URL"))
+except ImportError:
+    api_key = st.secrets.get("DEEPSEEK_API_KEY") 
+    base_url = st.secrets.get("DEEPSEEK_BASE_URL") 
+    client = OpenAI(api_key = os.getenv("DEEPSEEK_API_KEY"),base_url = os.getenv("DEEPSEEK_BASE_URL"))
+    pass
 
-client = OpenAI(api_key = os.getenv("DEEPSEEK_API_KEY"),base_url = os.getenv("DEEPSEEK_BASE_URL"))
+# 优先从 Streamlit Secrets 读取，其次从环境变量读取
+
 history_path = os.path.join(os.getcwd(),"history.json")
 
 def load_history():

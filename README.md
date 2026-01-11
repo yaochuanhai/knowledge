@@ -13,3 +13,6 @@ pip install pyinstaller
 pyinstaller --onefile --clean main.py
 
 pip install streamlit
+
+# 确保你已经激活了虚拟环境
+pip freeze > requirements.txt
