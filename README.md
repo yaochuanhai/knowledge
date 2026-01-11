@@ -11,3 +11,5 @@ pip install pyinstaller
 
 执行打包命令
 pyinstaller --onefile --clean main.py
+
+pip install streamlit
