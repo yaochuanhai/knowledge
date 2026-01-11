@@ -58,8 +58,19 @@ def get_final_report(history):
         '  "sharp_summary": "刻薄评语"\n'
         "}"
     )
-    # 过滤掉 tool 消息以简化总结逻辑
-    clean_history = [m for m in history if m["role"] in ["user", "assistant", "system"]]
+    
+    # 【关键修复】：清洗历史记录
+    # 过滤掉包含 tool_calls 的消息和 role 为 tool 的消息
+    # 只保留纯文本的对话内容，避免 API 校验序列失败
+    clean_history = []
+    for m in history:
+        # 只保留有内容且不是工具调用中间态的消息
+        if m["role"] in ["user", "system"]:
+            clean_history.append(m)
+        elif m["role"] == "assistant" and m.get("content"):
+            # 排除掉只有 tool_calls 没有 content 的 assistant 消息
+            clean_history.append({"role": "assistant", "content": m["content"]})
+
     messages = clean_history + [{"role": "system", "content": system_instruction}]
     
     response = client.chat.completions.create(
