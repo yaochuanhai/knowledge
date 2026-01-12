@@ -141,7 +141,7 @@ if prompt := st.chat_input("输入你的回答..."):
 
     # AI 回复逻辑
     with st.chat_message("assistant"):
-        with st.spinner("面试官正在冷嘲热讽..."):
+        with st.spinner("面试官正在酝酿毒液..."):
             response = client.chat.completions.create(
                 model="deepseek-chat",
                 messages=st.session_state.messages,
